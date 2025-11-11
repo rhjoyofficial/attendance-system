@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\{StudentController, TeacherController, AttendanceController, ClassController};
 
 Route::get('/', function () {
     return view('welcome');
@@ -18,3 +19,10 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+Route::middleware(['auth'])->group(function() {
+    Route::resource('students', StudentController::class);
+    Route::resource('teachers', TeacherController::class);
+    Route::resource('classes', ClassController::class);
+    Route::get('attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::post('attendance/store', [AttendanceController::class, 'store'])->name('attendance.store');
+});
