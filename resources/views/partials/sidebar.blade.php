@@ -91,7 +91,35 @@
                         </a>
                     </div>
                 @endif
+                @if (auth()->user()->isStudent())
+                    <div class="pt-4">
+                        <p class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Student</p>
 
+                        <a href="{{ route('my.attendance') }}"
+                            class="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+                  {{ request()->routeIs('my.attendance') ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100 hover:text-primary' }}">
+                            <i
+                                class="fas fa-user-clock mr-3 {{ request()->routeIs('my.attendance') ? 'text-primary' : 'text-gray-500' }}"></i>
+                            My Attendance
+                        </a>
+
+                        <a href="{{ route('my.schedule') }}"
+                            class="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+                  {{ request()->routeIs('my.schedule') ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100 hover:text-primary' }}">
+                            <i
+                                class="fas fa-calendar-alt mr-3 {{ request()->routeIs('my.schedule') ? 'text-primary' : 'text-gray-500' }}"></i>
+                            Schedule
+                        </a>
+
+                        <a href="{{ route('my.grades') }}"
+                            class="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+                  {{ request()->routeIs('my.grades') ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100 hover:text-primary' }}">
+                            <i
+                                class="fas fa-chart-line mr-3 {{ request()->routeIs('my.grades') ? 'text-primary' : 'text-gray-500' }}"></i>
+                            Grades
+                        </a>
+                    </div>
+                @endif
                 <!-- Profile -->
                 <div class="pt-4">
                     <p class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Account</p>
@@ -102,6 +130,31 @@
                         <i
                             class="fas fa-user-circle mr-3 {{ request()->routeIs('profile.edit') ? 'text-primary' : 'text-gray-500' }}"></i>
                         Profile
+                    </a>
+                </div>
+                <!-- Add this before the Profile section -->
+                <div class="pt-4">
+                    <p class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tools</p>
+
+                    <a href="{{ route('common.calendar') }}"
+                        class="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+              {{ request()->routeIs('common.calendar') ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100 hover:text-primary' }}">
+                        <i
+                            class="fas fa-calendar mr-3 {{ request()->routeIs('common.calendar') ? 'text-primary' : 'text-gray-500' }}"></i>
+                        Calendar
+                    </a>
+
+                    <a href="{{ route('common.notifications') }}"
+                        class="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+              {{ request()->routeIs('common.notifications') ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100 hover:text-primary' }}">
+                        <i
+                            class="fas fa-bell mr-3 {{ request()->routeIs('common.notifications') ? 'text-primary' : 'text-gray-500' }}"></i>
+                        Notifications
+                        {{-- @if ($unreadCount > 0)
+                            <span class="ml-auto bg-primary text-white text-xs px-2 py-1 rounded-full">
+                                {{ $unreadCount }}
+                            </span>
+                        @endif --}}
                     </a>
                 </div>
             @endauth

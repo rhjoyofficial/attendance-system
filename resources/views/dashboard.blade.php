@@ -226,12 +226,12 @@
                             <div class="inline-flex items-center justify-center relative">
                                 <svg class="w-32 h-32" viewBox="0 0 36 36">
                                     <path d="M18 2.0845
-                                            a 15.9155 15.9155 0 0 1 0 31.831
-                                            a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E5E7EB"
+                                                a 15.9155 15.9155 0 0 1 0 31.831
+                                                a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E5E7EB"
                                         stroke-width="3" />
                                     <path d="M18 2.0845
-                                            a 15.9155 15.9155 0 0 1 0 31.831
-                                            a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                                                a 15.9155 15.9155 0 0 1 0 31.831
+                                                a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
                                         stroke="{{ $attendancePercentage >= 75 ? '#10B981' : '#EF4444' }}"
                                         stroke-width="3" stroke-dasharray="{{ $attendancePercentage }}, 100" />
                                     <text x="18" y="20.5" text-anchor="middle"

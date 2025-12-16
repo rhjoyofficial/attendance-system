@@ -13,9 +13,10 @@ class TeacherController extends Controller
 {
     public function index()
     {
-        $teachers = Teacher::with(['user', 'classRoom'])->paginate(15);
+        $teachers = Teacher::with(['user', 'classRoom'])->paginate(10);
         return view('teachers.index', compact('teachers'));
     }
+
     public function create()
     {
         $classes = ClassRoom::all();
@@ -25,32 +26,33 @@ class TeacherController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:8|confirmed',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'subject' => 'nullable|string|max:255',
             'class_id' => 'nullable|exists:classes,id',
-            'subject' => 'nullable|string',
         ]);
 
+        // Create user
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
-        // Attach the Teacher role if using a roles system
+        // Assign teacher role
         $teacherRole = Role::where('name', 'Teacher')->first();
-        if ($teacherRole) {
-            $user->roles()->attach($teacherRole);
-        }
+        $user->roles()->attach($teacherRole);
 
+        // Create teacher record
         Teacher::create([
             'user_id' => $user->id,
-            'class_id' => $request->class_id,
             'subject' => $request->subject,
+            'class_id' => $request->class_id,
         ]);
 
-        return redirect()->route('teachers.index')->with('success', 'Teacher added!');
+        return redirect()->route('teachers.index')
+            ->with('success', 'Teacher created successfully.');
     }
 
     public function edit(Teacher $teacher)
@@ -62,18 +64,34 @@ class TeacherController extends Controller
     public function update(Request $request, Teacher $teacher)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $teacher->user->id,
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $teacher->user_id,
+            'subject' => 'nullable|string|max:255',
             'class_id' => 'nullable|exists:classes,id',
-            'subject' => 'nullable|string',
         ]);
 
-        // Update related user
-        $teacher->user->update($request->only('name', 'email'));
+        // Update user
+        $teacher->user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+        ]);
 
-        // Update teacher-specific fields
-        $teacher->update($request->only('class_id', 'subject'));
+        // Update teacher record
+        $teacher->update([
+            'subject' => $request->subject,
+            'class_id' => $request->class_id,
+        ]);
 
-        return redirect()->route('teachers.index')->with('success', 'Teacher updated!');
+        return redirect()->route('teachers.index')
+            ->with('success', 'Teacher updated successfully.');
+    }
+
+    public function destroy(Teacher $teacher)
+    {
+        // Delete user (which will cascade to teacher record)
+        $teacher->user->delete();
+
+        return redirect()->route('teachers.index')
+            ->with('success', 'Teacher deleted successfully.');
     }
 }

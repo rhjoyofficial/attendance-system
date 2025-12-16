@@ -9,7 +9,7 @@ class ClassController extends Controller
 {
     public function index()
     {
-        $classes = ClassRoom::all();
+        $classes = ClassRoom::with(['teacher.user', 'students'])->paginate(10);
         return view('classes.index', compact('classes'));
     }
 
@@ -23,11 +23,13 @@ class ClassController extends Controller
         $request->validate([
             'class_name' => 'required|string|max:255',
             'section' => 'nullable|string|max:50',
-            'subject' => 'nullable|string|max:100',
+            'subject' => 'nullable|string|max:255',
         ]);
 
-        ClassRoom::create($request->all());
-        return redirect()->route('classes.index')->with('success', 'Class created successfully!');
+        ClassRoom::create($request->only(['class_name', 'section', 'subject']));
+
+        return redirect()->route('classes.index')
+            ->with('success', 'Class created successfully.');
     }
 
     public function edit(ClassRoom $class)
@@ -40,21 +42,19 @@ class ClassController extends Controller
         $request->validate([
             'class_name' => 'required|string|max:255',
             'section' => 'nullable|string|max:50',
-            'subject' => 'nullable|string|max:100',
+            'subject' => 'nullable|string|max:255',
         ]);
 
-        $class->update($request->all());
-        return redirect()->route('classes.index')->with('success', 'Class updated successfully!');
+        $class->update($request->only(['class_name', 'section', 'subject']));
+
+        return redirect()->route('classes.index')
+            ->with('success', 'Class updated successfully.');
     }
 
     public function destroy(ClassRoom $class)
     {
-        // Check if class has students or teacher before deleting
-        if ($class->students()->count() > 0 || $class->teacher()->exists()) {
-            return back()->with('error', 'Cannot delete class with associated students or teacher!');
-        }
-
         $class->delete();
-        return redirect()->route('classes.index')->with('success', 'Class deleted successfully!');
+        return redirect()->route('classes.index')
+            ->with('success', 'Class deleted successfully.');
     }
 }

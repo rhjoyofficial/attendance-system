@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\ClassRoom;
 use App\Models\Role;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class StudentController extends Controller
 {
     public function index()
     {
-        $students = Student::with(['user', 'classRoom'])->paginate(15);
+        $students = Student::with(['user', 'class'])->paginate(10);
         return view('students.index', compact('students'));
     }
 
@@ -27,31 +27,36 @@ class StudentController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8|confirmed',
-            'roll_number' => 'required|unique:students',
-            'class_id' => 'nullable|exists:classes,id',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'roll_number' => 'required|string|max:50|unique:students',
             'dob' => 'nullable|date',
             'gender' => 'nullable|in:Male,Female,Other',
+            'class_id' => 'required|exists:classes,id',
         ]);
 
+        // Create user
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
-        $user->roles()->attach(Role::where('name', 'Student')->first());
+        // Assign student role
+        $studentRole = Role::where('name', 'Student')->first();
+        $user->roles()->attach($studentRole);
 
+        // Create student record
         Student::create([
             'user_id' => $user->id,
             'roll_number' => $request->roll_number,
-            'class_id' => $request->class_id,
             'dob' => $request->dob,
             'gender' => $request->gender,
+            'class_id' => $request->class_id,
         ]);
 
-        return redirect()->route('students.index')->with('success', 'Student added successfully!');
+        return redirect()->route('students.index')
+            ->with('success', 'Student created successfully.');
     }
 
     public function edit(Student $student)
@@ -63,25 +68,38 @@ class StudentController extends Controller
     public function update(Request $request, Student $student)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $student->user->id,
-            'roll_number' => 'required|unique:students,roll_number,' . $student->id,
-            'class_id' => 'nullable|exists:classes,id',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $student->user_id,
+            'roll_number' => 'required|string|max:50|unique:students,roll_number,' . $student->id,
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|in:Male,Female,Other',
+            'class_id' => 'required|exists:classes,id',
         ]);
 
+        // Update user
         $student->user->update([
             'name' => $request->name,
             'email' => $request->email,
         ]);
 
-        $student->update($request->only(['roll_number', 'class_id', 'dob', 'gender']));
+        // Update student record
+        $student->update([
+            'roll_number' => $request->roll_number,
+            'dob' => $request->dob,
+            'gender' => $request->gender,
+            'class_id' => $request->class_id,
+        ]);
 
-        return redirect()->route('students.index')->with('success', 'Student updated!');
+        return redirect()->route('students.index')
+            ->with('success', 'Student updated successfully.');
     }
 
     public function destroy(Student $student)
     {
-        $student->user->delete(); // cascades to student
-        return back()->with('success', 'Student deleted.');
+        // Delete user (which will cascade to student record)
+        $student->user->delete();
+
+        return redirect()->route('students.index')
+            ->with('success', 'Student deleted successfully.');
     }
 }
