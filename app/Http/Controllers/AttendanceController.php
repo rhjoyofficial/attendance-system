@@ -3,27 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
-use App\Models\AuditLog;
 use App\Models\ClassRoom;
 use App\Models\Student;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Exports\AttendanceExport;
-use Maatwebsite\Excel\Facades\Excel;
+use Carbon\Carbon;
+
 class AttendanceController extends Controller
 {
     public function index()
     {
-        if (Auth::user()->isAdmin()) {
+        $user = auth()->user();
+
+        if ($user->isAdmin()) {
             $classes = ClassRoom::all();
+        } elseif ($user->isTeacher()) {
+            $teacher = $user->teacher;
+            $classes = $teacher ? ClassRoom::where('id', $teacher->class_id)->get() : collect();
         } else {
-            $teacher = Auth::user()->teacher;
-
-            if (!$teacher || !$teacher->class_id) {
-                return view('attendance.no-class');
-            }
-
-            $classes = ClassRoom::where('id', $teacher->class_id)->get();
+            abort(403, 'Unauthorized');
         }
 
         return view('attendance.index', compact('classes'));
@@ -33,25 +30,20 @@ class AttendanceController extends Controller
     {
         $request->validate([
             'class_id' => 'required|exists:classes,id',
-            'date' => 'required|date',
         ]);
 
-        $existing = Attendance::where('class_id', $request->class_id)
-            ->where('date', $request->date)->exists();
+        $students = Student::with('user')
+            ->where('class_id', $request->class_id)
+            ->get()
+            ->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'roll_number' => $student->roll_number,
+                    'name' => $student->user->name,
+                ];
+            });
 
-        if ($existing) {
-            return response()->json(['error' => 'Attendance already taken for this date.'], 422);
-        }
-
-        $students = Student::where('class_id', $request->class_id)
-            ->with('user')
-            ->get();
-
-        return response()->json([
-            'students' => $students,
-            'date' => $request->date,
-            'class_id' => $request->class_id,
-        ]);
+        return response()->json($students);
     }
 
     public function store(Request $request)
@@ -59,93 +51,97 @@ class AttendanceController extends Controller
         $request->validate([
             'class_id' => 'required|exists:classes,id',
             'date' => 'required|date',
-            'attendance' => 'required|array',
-            'attendance.*.student_id' => 'required|exists:students,id',
-            'attendance.*.status' => 'required|in:Present,Absent',
+            'status' => 'required|array',
+            'status.*' => 'in:Present,Absent',
+            'remarks' => 'nullable|array',
         ]);
 
-        $date = $request->date;
-        $classId = $request->class_id;
+        $teacherId = auth()->user()->teacher ? auth()->user()->teacher->id : null;
 
-        if (Attendance::where('class_id', $classId)->where('date', $date)->exists()) {
-            return back()->with('error', 'Attendance already submitted for this date!');
+        foreach ($request->status as $studentId => $status) {
+            Attendance::updateOrCreate(
+                [
+                    'class_id' => $request->class_id,
+                    'student_id' => $studentId,
+                    'date' => $request->date,
+                ],
+                [
+                    'teacher_id' => $teacherId,
+                    'status' => $status,
+                    'remarks' => $request->remarks[$studentId] ?? null,
+                ]
+            );
         }
 
-        // Get teacher safely
-        $teacher = Auth::user()->teacher;
-        if (!$teacher) {
-            return back()->with('error', 'Teacher profile not found.');
-        }
-
-        foreach ($request->attendance as $item) {
-            Attendance::create([
-                'class_id' => $classId,
-                'student_id' => $item['student_id'],
-                'teacher_id' => $teacher->id,
-                'date' => $date,
-                'status' => $item['status'],
-            ]);
-        }
-
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'Marked Attendance',
-            'details' => "Class: {$classId}, Date: {$date}, Records: " . count($request->attendance),
-            'ip_address' => $request->ip(),
-        ]);
-
-        return redirect()->route('attendance.index')->with('success', 'Attendance submitted successfully!');
+        return redirect()->route('attendance.index')
+            ->with('success', 'Attendance marked successfully.');
     }
 
-    public function report(Request $request)
+    public function report()
     {
-        $query = Attendance::with(['student.user', 'classRoom']);
+        $user = auth()->user();
+        $reportData = [];
 
-        if ($request->filled('month')) {
-            $month = $request->month;
-            $query->whereYear('date', substr($month, 0, 4))
-                ->whereMonth('date', substr($month, 5, 2));
+        if ($user->isAdmin()) {
+            // Admin sees all classes
+            $classes = ClassRoom::with(['attendances', 'students'])->get();
+
+            foreach ($classes as $class) {
+                $totalStudents = $class->students->count();
+                $presentToday = $class->attendances()->whereDate('date', today())->where('status', 'Present')->count();
+                $absentToday = $class->attendances()->whereDate('date', today())->where('status', 'Absent')->count();
+
+                $reportData[] = [
+                    'class' => $class,
+                    'total_students' => $totalStudents,
+                    'present_today' => $presentToday,
+                    'absent_today' => $absentToday,
+                    'attendance_rate' => $totalStudents > 0 ? round(($presentToday / $totalStudents) * 100, 2) : 0,
+                ];
+            }
+        } elseif ($user->isTeacher()) {
+            // Teacher sees only their class
+            $teacher = $user->teacher;
+
+            if ($teacher && $teacher->classRoom) {
+                $class = $teacher->classRoom;
+                $totalStudents = $class->students->count();
+                $presentToday = $class->attendances()->whereDate('date', today())->where('status', 'Present')->count();
+                $absentToday = $class->attendances()->whereDate('date', today())->where('status', 'Absent')->count();
+
+                $reportData[] = [
+                    'class' => $class,
+                    'total_students' => $totalStudents,
+                    'present_today' => $presentToday,
+                    'absent_today' => $absentToday,
+                    'attendance_rate' => $totalStudents > 0 ? round(($presentToday / $totalStudents) * 100, 2) : 0,
+                ];
+            }
         }
 
-        if ($request->filled('class_id')) {
-            $query->where('class_id', $request->class_id);
-        }
-
-        if ($request->filled('student_id')) {
-            $query->where('student_id', $request->student_id);
-        }
-
-        $attendances = $query->orderBy('date', 'desc')->paginate(20);
-
-        $classes = ClassRoom::all();
-        $students = $request->class_id ? Student::where('class_id', $request->class_id)->with('user')->get() : collect();
-
-        return view('attendance.report', compact('attendances', 'classes', 'students'));
+        return view('attendance.report', compact('reportData'));
     }
 
     public function myAttendance()
     {
-        $student = Auth::user()->student;
+        $user = auth()->user();
 
-        if (!$student) {
-            return redirect()->route('dashboard')->with('error', 'Student profile not found.');
+        if (!$user->isStudent()) {
+            abort(403, 'Unauthorized');
         }
 
-        $attendances = Attendance::where('student_id', $student->id)
-            ->with('classRoom')
-            ->orderBy('date', 'desc')
-            ->paginate(20);
+        $student = $user->student;
+        $attendances = $student->attendances()->with('classRoom')->latest()->paginate(10);
 
-        $total = $attendances->total();
-        $present = Attendance::where('student_id', $student->id)->where('status', 'Present')->count();
-        $percentage = $total > 0 ? round(($present / $total) * 100, 1) : 0;
+        $stats = [
+            'total' => $student->attendances()->count(),
+            'present' => $student->attendances()->where('status', 'Present')->count(),
+            'absent' => $student->attendances()->where('status', 'Absent')->count(),
+            'percentage' => $student->attendances()->count() > 0
+                ? round(($student->attendances()->where('status', 'Present')->count() / $student->attendances()->count()) * 100, 1)
+                : 0,
+        ];
 
-        return view('attendance.my', compact('attendances', 'present', 'total', 'percentage'));
-    }
-
-    public function export(Request $request)
-    {
-        $filename = 'attendance-report-' . now()->format('Y-m-d') . '.xlsx';
-        return Excel::download(new AttendanceExport($request), $filename);
+        return view('attendance.my', compact('attendances', 'stats'));
     }
 }
